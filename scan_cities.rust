@@ -1,39 +1,50 @@
+#Cargo.toml
+[dependencies]
+csv = "1.1"
+serde = "1.0"
+serde_derive = "1.0"
+reqwest = { version = "0.11", features = ["blocking"] }
+tokio = { version = "1", features = ["full"] }
+
+
 use csv::ReaderBuilder;
 use reqwest;
 use std::error::Error;
 use std::fs::File;
+use tokio;
 
 #[derive(Debug, serde::Deserialize)]
 struct City {
     name: String,
 }
 
-fn check_website(url: &str) -> bool {
-    match reqwest::blocking::get(url) {
+async fn check_website(url: &str) -> bool {
+    match reqwest::get(url).await {
         Ok(response) => response.status().is_success(),
         Err(_) => false,
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     // Open and read the CSV file
     let file = File::open("cities.csv")?;
     let mut rdr = ReaderBuilder::new().has_headers(false).from_reader(file);
 
     // Process each row in the CSV file
-    for result in rdr.deserialize() {
+    while let Some(result) = rdr.deserialize().next() {
         let city: City = result?;
         let city_name = &city.name;
 
-        // Check for domains with both http and https
-        let has_com_http = check_website(&format!("http://{}.com", city_name));
-        let has_com_https = check_website(&format!("https://{}.com", city_name));
+        // Check for domains with both http and https asynchronously
+        let has_com_http = check_website(&format!("http://{}.com", city_name)).await;
+        let has_com_https = check_website(&format!("https://{}.com", city_name)).await;
 
-        let has_us_http = check_website(&format!("http://{}.us", city_name));
-        let has_us_https = check_website(&format!("https://{}.us", city_name));
+        let has_us_http = check_website(&format!("http://{}.us", city_name)).await;
+        let has_us_https = check_website(&format!("https://{}.us", city_name)).await;
 
-        let has_gov_http = check_website(&format!("http://{}.gov", city_name));
-        let has_gov_https = check_website(&format!("https://{}.gov", city_name));
+        let has_gov_http = check_website(&format!("http://{}.gov", city_name)).await;
+        let has_gov_https = check_website(&format!("https://{}.gov", city_name)).await;
 
         // Build the report
         if (has_com_http || has_com_https || has_us_http || has_us_https) && !(has_gov_http || has_gov_https) {
@@ -50,12 +61,3 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
-
-
-
-#Cargo.toml
-[dependencies]
-csv = "1.1"
-serde = "1.0"
-serde_derive = "1.0"
-reqwest = "0.11"
